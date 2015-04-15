@@ -167,6 +167,7 @@ int main(int argc , char *argv[])
 
                 size = recv(sd, response, 2000, 0);
                 response[strlen(response)] = 0;
+                printf("Received command: %s\n", response);
 
                 if(size == 0)
                 {
@@ -318,20 +319,57 @@ int main(int argc , char *argv[])
                 }
                 else if (!strcmp(response, "\\w"))
                 {
-                    char * confirmation = "You have been added to the working gruop.";
-                    // Check if sd is not in working group array..
-                    working_group[workingIndex] = sd;
-                    workingIndex++;
+                    memset(response,'\0',2000);
+                    int found = 0;
+                    char confirmation[1024];
+                    for (i = 0; i < max_clients; i++)
+                    {
+                        int wsd = working_group[i];
+                        if (sd == wsd)
+                            found = 1;
+                    }
+                    if ( ! found )
+                    {
+                        strcpy(confirmation, "You have been added to the working group.");
+                        working_group[workingIndex] = sd;
+                        workingIndex++;
+                    }
+                    else
+                        strcpy(confirmation, "You are already in the working group");
+
                     write(sd, confirmation, strlen(confirmation));
                 }
 
                 else if (!strcmp(response, "\\f"))
                 {
-                    char * confirmation = "You have been added to the fun group.";
-                    // Check if sd is not in working group array..
-                    fun_group[funIndex] = sd;
-                    funIndex++;
+                    memset(response,'\0',2000);
+                    int found = 0;
+                    char confirmation[1024];
+
+                    for (i = 0; i < max_clients; i++)
+                    {
+                        int fsd = fun_group[i];
+                        if (sd == fsd)
+                            found = 1;
+                    }
+                    if ( ! found )
+                    {
+                        strcpy(confirmation,"You have been added to the fun group.");
+                        fun_group[funIndex] = sd;
+                        funIndex++;
+                    }
+                    else
+                        strcpy(confirmation, "You are already in the fun group");
+
                     write(sd, confirmation, strlen(confirmation));
+                }
+
+                else if (!strcmp(response, "\\qw"))
+                {
+                    // if ( inWorkingGroup() )
+                    // {
+
+                    // }
                 }
 
                 else if (!strcmp(response, "\\sw"))
@@ -340,7 +378,7 @@ int main(int argc , char *argv[])
                     char * error = "You aren't in the working group.";
                     // Get message..
                     memset(response,'\0',2000); //clear response variable
-                    recv(sd,response,2000,0);//stage 1 get name of other client
+                    recv(sd,response,2000,0);
 
                     printf("working index:%d\n", workingIndex);
                     for (i = 0; i < max_clients; i++)
@@ -350,12 +388,14 @@ int main(int argc , char *argv[])
                             found = 1;
                     }
                     if (found){
+                        char msg[1024] = "Working Group: ";
+                        strcat(msg, response);
                         // loop over working group and send to all..
                         for (i = 0; i < max_clients; i++)
                         {
                             int wsd = working_group[i]; 
                             if (wsd > 0 && wsd != sd)
-                                write(wsd, response, strlen(response));
+                                write(wsd, msg, strlen(msg));
                         }
                     } else 
                         write(sd, error, strlen(error));
