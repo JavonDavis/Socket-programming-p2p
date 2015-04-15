@@ -227,15 +227,29 @@ int main(){
                 }
                 else if(!strcmp(command, "\\w"))
                 {
-                    char * message = "Requesting to join the working group..";
-                    send(sock, message, strlen(message), 0);
+                    char * message = "Requesting to join the working group..\n";
+                    printf("%s\n", message);
                     memset(command,'\0',2000);
+                }
+
+                else if (!strcmp(command, "\\qw"))
+                {
+                    char message[1024] = "Requesting to quit the working group..\n";
+                    printf("%s\n", message);
+                    memset(command, '\0', 2000);
+                }
+
+                else if (!strcmp(command, "\\qf"))
+                {
+                    char message[1024] = "Requesting to quit the fun group..\n";
+                    printf("%s\n", message);
+                    memset(command, '\0', 2000);
                 }
  
                 else if(!strcmp(command, "\\f"))
                 {
-                    char * message = "Requesting to join the fun group..";
-                    send(sock, message, strlen(message), 0);
+                    char * message = "Requesting to join the fun group..\n";
+                    printf("%s\n", message);
                     memset(command,'\0',2000);
                 }
 

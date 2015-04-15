@@ -11,6 +11,18 @@
   
 #define PORT 60000
  
+int inGroup(int sd, int group[10])
+{
+    int i, found = 0;
+    for (i = 0; i < 10; i++){
+        if (sd == group[i])
+        {
+            found = 1;
+        }
+    }
+    return found;
+}
+
 int main(int argc , char *argv[])
 {
     int main_socket , addrlen , new_socket , client_socket[10] , max_clients = 10 , activity, i , num_bytes , sd;
@@ -87,7 +99,7 @@ int main(int argc , char *argv[])
         for (i = 0; i < max_clients; i++){
 
             sd = client_socket[i];
-
+            printf("%d\n", sd);
             if(sd> 0)
             {
                 FD_SET(sd,&readfds);
@@ -124,7 +136,6 @@ int main(int argc , char *argv[])
             strcpy(names[count],name);
 
             ips[count] = address.sin_addr.s_addr;
-            client_socket[count] = sd;
             count+=1;  
 
             FILE *f = fopen("online.txt","w");
@@ -167,13 +178,56 @@ int main(int argc , char *argv[])
 
                 size = recv(sd, response, 2000, 0);
                 response[strlen(response)] = 0;
+                printf("Received command: %s\n", response);
 
                 if(size == 0)
                 {
                     printf("Client %d disconnected\n",sd);
 
+                   // FD_CLR(sd,&readfds);
                     close(sd);
-                    FD_CLR(sd,&readfds);
+                    int i;
+                    for (i = 0; i < max_clients; i++)
+                    {
+                        if ( sd == client_socket[i])
+                        {
+                            client_socket[i] = 0;
+                            count-=1;
+                            break;
+                        }
+                    }
+                    if (inGroup (sd, working_group))
+                    {   
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == working_group[i])
+                                working_group[i] = 0;
+                        }
+                    }
+
+                    if (inGroup (sd, fun_group))
+                    {   
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == fun_group[i])
+                                fun_group[i] = 0;
+                        }
+                    }
+                    FILE *f = fopen("online.txt","w");
+                    fprintf(f,"%d\n",count);
+                    
+                    for(i=0;i<count;i++)
+                    {   
+                        if(client_socket[i]!=0)
+                        {
+                            printf("%s\n",names[i]);
+                            fprintf(f,"%s\n",names[i]);    //username
+                            fprintf(f,"%d\n",client_socket[i]);  //socket descriptor
+                            fprintf(f,"%d\n",ips[i]);    //ip
+                        }
+                    }
+                    fclose(f);
+
                     break;
                 }
                 if(!strcmp(response,"\\c"))
@@ -318,44 +372,99 @@ int main(int argc , char *argv[])
                 }
                 else if (!strcmp(response, "\\w"))
                 {
-                    char * confirmation = "You have been added to the working gruop.";
-                    // Check if sd is not in working group array..
-                    working_group[workingIndex] = sd;
-                    workingIndex++;
+                    memset(response,'\0',2000);
+                    char confirmation[1024];
+
+                    if ( ! inGroup(sd, working_group) )
+                    {
+                        strcpy(confirmation, "You have been added to the working group.");
+                        working_group[workingIndex] = sd;
+                        workingIndex++;
+                    }
+                    else
+                        strcpy(confirmation, "You are already in the working group");
+
                     write(sd, confirmation, strlen(confirmation));
                 }
 
                 else if (!strcmp(response, "\\f"))
                 {
-                    char * confirmation = "You have been added to the fun group.";
-                    // Check if sd is not in working group array..
-                    fun_group[funIndex] = sd;
-                    funIndex++;
+                    memset(response,'\0',2000);
+                    char confirmation[1024];
+
+                    if ( ! inGroup(sd, fun_group) )
+                    {
+                        strcpy(confirmation,"You have been added to the fun group.");
+                        fun_group[funIndex] = sd;
+                        funIndex++;
+                    }
+                    else
+                        strcpy(confirmation, "You are already in the fun group");
+
                     write(sd, confirmation, strlen(confirmation));
+                }
+
+                else if (!strcmp(response, "\\qw"))
+                {
+                    char msg[1024];
+                    memset(response,'\0',2000); //clear response variable
+
+                    if ( inGroup (sd, working_group ))
+                    {
+                        int i;
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == working_group[i])
+                                working_group[i] = 0;
+                        }
+
+                        strcpy(msg, "You have been removed from the working group");
+                    } else
+                        strcpy(msg, "You aren't in the working group."); 
+
+                    write(sd, msg, strlen(msg));
+                }
+
+                else if (!strcmp(response, "\\qf"))
+                {
+                    char msg[1024];
+                    memset(response,'\0',2000); //clear response variable
+
+                    if ( inGroup (sd, fun_group ))
+                    {
+                        int i;
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == fun_group[i])
+                                fun_group[i] = 0;
+                        }
+
+                        strcpy(msg, "You have been removed from the fun group");
+                    } else
+                        strcpy(msg, "You aren't in the fun group."); 
+
+                    write(sd, msg, strlen(msg));
                 }
 
                 else if (!strcmp(response, "\\sw"))
                 {
-                    int found = 0;
                     char * error = "You aren't in the working group.";
                     // Get message..
                     memset(response,'\0',2000); //clear response variable
-                    recv(sd,response,2000,0);//stage 1 get name of other client
+                    recv(sd,response,2000,0);
 
                     printf("working index:%d\n", workingIndex);
-                    for (i = 0; i < max_clients; i++)
+                
+                    if ( inGroup (sd, working_group ))
                     {
-                        int wsd = working_group[i];
-                        if ( sd == wsd )
-                            found = 1;
-                    }
-                    if (found){
+                        char msg[1024] = "Working Group: ";
+                        strcat(msg, response);
                         // loop over working group and send to all..
                         for (i = 0; i < max_clients; i++)
                         {
                             int wsd = working_group[i]; 
                             if (wsd > 0 && wsd != sd)
-                                write(wsd, response, strlen(response));
+                                write(wsd, msg, strlen(msg));
                         }
                     } else 
                         write(sd, error, strlen(error));
@@ -363,21 +472,15 @@ int main(int argc , char *argv[])
 
                 else if (strcmp(response, "\\sf") == 0)
                 {
-                    int found = 0;
-
+                   
                     char * error = "You aren't in the fun group.";
                     // Get message..
                     memset(response,'\0',2000); //clear response variable
                     recv(sd,response,2000,0);//stage 1 get name of other client
                     // loop over working group and send to all..
 
-                    for (i = 0; i < max_clients; i++)
+                    if ( inGroup(sd, fun_group) ) 
                     {
-                        int fsd = fun_group[i];
-                        if ( sd == fsd )
-                            found = 1;
-                    }
-                    if (found){
                         for (i = 0; i < max_clients; i++)
                         {
                             int fsd = fun_group[i]; 
