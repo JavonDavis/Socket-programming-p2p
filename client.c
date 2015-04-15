@@ -69,9 +69,8 @@ int main(){
         printf("\\f - to subscribe to fun group\n");
         printf("\\sw - to send a broadcast to working group\n");
         printf("\\sf - to send a broadcast to fun group\n");
+        printf("\\q - Exit\n");
 
-        // printf("->)");
-        // fflush(stdout);
         fd_set readfs;
         FD_ZERO(&readfs);
         while(1)
@@ -86,15 +85,14 @@ int main(){
 
             select(sock+1, &readfs, NULL, NULL, NULL);
 
+            //server sent a message
             if(FD_ISSET(sock,&readfs))
             {
-                //printf("Server here first\n");
                 i = recv(sock,response,2000,0);
                 if(i<0){
                     printf("recv failed\n");
                     return 1;
                 }
-                //printf("Server reply: \n");
                 if(strcmp(response,"n") ==0)
                 {
                     printf("Server could not find user\n");
@@ -120,61 +118,75 @@ int main(){
                         j++;
                     }
 
-                    //printf("\nnew_ip : %s  ;  new_port = %s\nForking new process...\n", nIp,nPort);
-                    // if((i=fork())==0)
-                    // {
-                        new_client_socket = socket(AF_INET , SOCK_STREAM , 0);
-                        if(new_client_socket<0)
+                    new_client_socket = socket(AF_INET , SOCK_STREAM , 0);
+                    if(new_client_socket<0)
+                    {
+                        perror("socket");
+                    }
+
+                    memset(&server_client, 0, sizeof (server_client)); 
+                    server_client.sin_addr.s_addr = (long int)atoi(nIp);
+                    server_client.sin_family = AF_INET;
+                    server_client.sin_port = htons( atoi(nPort) );
+
+                    //Attempting to connect
+
+                    i = connect(new_client_socket,(struct sockaddr *) &server_client, sizeof(server_client));
+                    if(i<0)
+                    {
+                        perror("Connect");
+                        return 1;
+                    }
+
+                    printf("Converstion begun\nEnter \\x at any time to end.\n");
+                    fd_set readfs_new; 
+                    FD_ZERO(&readfs_new);
+                    while(1)
+                    {
+                        FD_SET(new_client_socket, &readfs_new);
+                        FD_SET(0, &readfs_new);
+        
+                        memset(response,'\0',2000);
+                        memset(message,'\0',1000);
+                        
+                        select(new_client_socket+1, &readfs_new, NULL, NULL, NULL);
+                        
+                        
+                        //If new server sends message first
+                        if(FD_ISSET(new_client_socket, &readfs_new)) 
                         {
-                            perror("socket");
-                        }
-
-                        memset(&server_client, 0, sizeof (server_client)); 
-                        server_client.sin_addr.s_addr = (long int)atoi(nIp);
-                        server_client.sin_family = AF_INET;
-                        server_client.sin_port = htons( atoi(nPort) );
-
-                        printf("Attempting to connect\n");
-
-                        i = connect(new_client_socket,(struct sockaddr *) &server_client, sizeof(server_client));
-                        if(i<0)
-                        {
-                            perror("Connect");
-                            return 1;
-                        }
-
-                        //select(new_client_socket+1,convofds,NULL,NULL,NULL);
-
-                        printf("Converstion begun\nEnter \\x at any time to end.\n");
-                        fd_set readfs_new; 
-                        FD_ZERO(&readfs_new);
-                        //printf("Enter message : ");
-                        while(1)
-                        {
-                            FD_SET(new_client_socket, &readfs_new);
-                            FD_SET(0, &readfs_new);
-            
-                            memset(response,'\0',2000);
-                            memset(message,'\0',1000);
-                            
-                            //printf("\nEnter message : ");
-                            select(new_client_socket+1, &readfs_new, NULL, NULL, NULL);
-                            
-                            
-                            //If new server gets first
-                            if(FD_ISSET(new_client_socket, &readfs_new)) 
+                            recv(new_client_socket, response, 2000, 0);
+                            if(!strcmp(response,"yes"))
+                                printf("Msg received? : %s \n", response);
+                            else if(strcmp(response,"\\x")==0)
                             {
-                                recv(new_client_socket, response, 2000, 0);
-                                if(strcmp(response,"yes")==0)
+                                printf("Msg received? : %s \n", response);
+                                printf("ENDING CONVERSATION\n");
+                                
+                                FD_CLR(new_client_socket, &readfs_new);
+                                FD_CLR(0, &readfs_new);
+                                send(sock,"\\x",strlen("\\x"),0);
+                                break;
+                            }
+                            else
+                                printf("%s\n", response);
+                            
+                        }
+
+
+                        
+                        //If stdin sends first
+                        if(FD_ISSET(0, &readfs_new)) 
+                        {
+                            fgets(message,sizeof(message),stdin);
+                            message[strlen(message)-1] = '\0';
+                            if(strlen(message)>0)
+                            {
+                                if(strcmp(message,"\\x")==0)
                                 {
-                                    printf("Msg received? : %s \n", response);
-                                }
-                                else if(strcmp(response,"\\x")==0)
-                                {
-                                    printf("Msg received? : %s \n", response);
                                     printf("ENDING CONVERSATION\n");
-                                    
-                                    //send(new_client_socket,message,strlen(message), 0);
+
+                                    send(new_client_socket,message,strlen(message), 0);
                                     //close(new_client_socket);
                                     FD_CLR(new_client_socket, &readfs_new);
                                     FD_CLR(0, &readfs_new);
@@ -182,85 +194,52 @@ int main(){
                                     break;
                                 }
                                 else
-                                    printf("%s\n", response);
-                                
-                            }
-
-
-                            
-                            //If stdin gets first
-                            if(FD_ISSET(0, &readfs_new)) 
-                            {
-    /*                              printf("Enter message : ");*/
-                                //scanf("%s", message);
-                                fgets(message,sizeof(message),stdin);
-                                message[strlen(message)-1] = '\0';
-                                if(strlen(message)>0)
                                 {
-                                    if(strcmp(message,"\\x")==0)
-                                    {
-                                        printf("ENDING CONVERSATION\n");
-
-                                        send(new_client_socket,message,strlen(message), 0);
-                                        //close(new_client_socket);
-                                        FD_CLR(new_client_socket, &readfs_new);
-                                        FD_CLR(0, &readfs_new);
-                                        send(sock,"\\x",strlen("\\x"),0);
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        strcpy(complete,name);
-                                        strcat(complete,":");
-                                        strcat(complete,message);
-                                        send(new_client_socket  , complete , strlen(complete) , 0);
-                                        memset(complete,'\0',2000);
-                                    }
+                                    strcpy(complete,name);
+                                    strcat(complete,":");
+                                    strcat(complete,message);
+                                    send(new_client_socket  , complete , strlen(complete) , 0);
+                                    memset(complete,'\0',2000);
                                 }
                             }
-                            // FD_CLR(new_client_socket, &readfs_new);
-                            // FD_CLR(0, &readfs_new);
                         }
-                    //}
-                    
+                    }
                 }
                 else
-                {
                     printf("%s\n",response );
-                    //send(sock,response,strlen(response),0);
-                }
                     
             }
 
+            //stdin entered a command
             if(FD_ISSET(0, &readfs)) {
 
+                //get and send off command to server
                 scanf("%s",command);
-
                 i = send(sock,command,strlen(command),0);
-                if(strcmp(command,"\\q")==0)
+
+
+                if(!strcmp(command,"\\q"))
                 {
                     close(sock);
                     FD_CLR(sock, &readfs);
                     FD_CLR(0, &readfs);
                     FD_ZERO(&readfs);   
                 }
-                else if(strcmp(command, "\\w") == 0)
+                else if(!strcmp(command, "\\w"))
                 {
-                    //this breaks everything
                     char * message = "Requesting to join the working group..";
                     send(sock, message, strlen(message), 0);
                     memset(command,'\0',2000);
                 }
  
-                else if(strcmp(command, "\\f") == 0)
+                else if(!strcmp(command, "\\f"))
                 {
-                    //this also breaks everything
                     char * message = "Requesting to join the fun group..";
                     send(sock, message, strlen(message), 0);
                     memset(command,'\0',2000);
                 }
 
-                else if (strcmp(command, "\\sw") == 0)
+                else if (!strcmp(command, "\\sw"))
                 {
                     printf("Enter message to send to working group..\n");
                     char message[1024];
@@ -271,7 +250,7 @@ int main(){
                     memset(command,'\0',2000);
                 }
 
-                else if (strcmp(command, "\\sf") == 0)
+                else if (!strcmp(command, "\\sf"))
                 {
                     printf("Enter message to send to fun group..\n");
                     char message[1024];
@@ -281,19 +260,16 @@ int main(){
                     send(sock, message, strlen(message), 0);
                     memset(command,'\0',2000);
                 }
-                else if(strcmp(command,"\\c") == 0)
+                else if(!strcmp(command,"\\c"))
                 {
                     printf("Please enter the name of the client you wish to chat with\n");
                     scanf("%s",remote_name);
                     send(sock,remote_name,strlen(remote_name),0);
 
                     recv(sock,response,80,0);
-                    //response[strlen(response) -1] = '\0';
-                    //printf("Reply:%s\n",response );
+
                     if(strcmp(response,"n") ==0)
-                    {
                         printf("Invalid name\n");
-                    }
                     else
                     {
                         int port,new_sock;
@@ -301,126 +277,115 @@ int main(){
                         memset(response,'\0',2000);
                         recv(sock,response,2000,0);
 
-                        printf("new port:%s\n", response);
                         port = atoi(response);
                         if(port>0)
                         {
-                        if((i = fork()) == 0)
-                        {
-                            new_sock = socket(AF_INET,SOCK_STREAM,0);
-                            if(new_sock<0)
+                            if(!(i = fork())) //spawn child process to handle conversation
                             {
-                                perror("socket");
-                            }
-
-                            printf("new socket created:%d\n",new_sock );
-
-                            new_server.sin_family = AF_INET; 
-                            new_server.sin_addr.s_addr = INADDR_ANY;
-                            
-                            new_server.sin_port = htons( port );
-
-                            i = bind(new_sock, (struct sockaddr *) &new_server, sizeof(new_server));
-                            if(i<0)
-                            {
-                                perror("bind");
-                            }
-
-                            listen(new_sock,1);
-
-                            printf("Waiting for client to connect.\n");
-                            
-                            size_new = sizeof(struct sockaddr_in);
-
-                            new_client_socket = accept(new_sock,(struct sockaddr *) &new_client, (socklen_t *)&size_new);
-
-                            if(new_client_socket<0)
-                            {
-                                perror("accept");
-                            }
-
-                            printf("New connection accepted from %d\n", new_client_socket);
-                            
-                            memset(client_msg,'\0',2000);
-                            int read_size;
-
-                            printf("Conversation begun\nEnter \\x at any time to end.\n");
-                            
-                            fd_set readfs_new; 
-                            FD_ZERO(&readfs_new);
-                            //printf("Enter message : ");
-                            while(1) 
-                            {
-    
-                                FD_SET(new_client_socket , &readfs_new);
-                                FD_SET(0, &readfs_new);
-
-                                memset(client_msg,'\0',2000);
-                                memset(message,'\0',1000);
-    
-                                //printf("\nEnter message : ");
-                                select(FD_SETSIZE, &readfs_new, NULL, NULL, NULL);
-                                
-                                
-                                //If new client gets first
-                                if(FD_ISSET(new_client_socket , &readfs_new)) 
+                                new_sock = socket(AF_INET,SOCK_STREAM,0);
+                                if(new_sock<0)
                                 {
-                                    recv(new_client_socket, client_msg , 2000 , 0);
-                                    //printf("\n\nwaiting for client to type something...");
-                                    printf("%s\n",client_msg);
-                                    if(strcmp(client_msg,"\\x")==0)
-                                    {
-                                        printf("ENDING CONVERSATION\n");
-
-                                        //send(new_client_socket,message,strlen(message), 0);
-                                        //close(new_client_socket);
-                                        FD_CLR(new_client_socket, &readfs_new);
-                                        FD_CLR(0, &readfs_new);
-                                        send(sock,"\\x",strlen("\\x"),0);
-                                        break;
-                                    }
-                                    else
-                                        send(new_client_socket , "yes" , strlen("yes") , 0);
+                                    perror("socket");
                                 }
-                                    
-                                //If stdin gets first
-                                if(FD_ISSET(0, &readfs_new)) 
-                                {
-/*                                          printf("\nEnter message : ");*/
-                                    //scanf("%s", message);
-                                    fgets(message,sizeof(message),stdin);
-                                    message[strlen(message)-1] = '\0';
 
-                                    if(strlen(message)>0)
+                                new_server.sin_family = AF_INET; 
+                                new_server.sin_addr.s_addr = INADDR_ANY;
+                                
+                                new_server.sin_port = htons( port );
+
+                                i = bind(new_sock, (struct sockaddr *) &new_server, sizeof(new_server));
+                                if(i<0)
+                                {
+                                    perror("bind");
+                                }
+
+                                listen(new_sock,1);
+
+                                printf("Waiting for client to connect...\n");
+                                
+                                size_new = sizeof(struct sockaddr_in);
+
+                                new_client_socket = accept(new_sock,(struct sockaddr *) &new_client, (socklen_t *)&size_new);
+
+                                if(new_client_socket<0)
+                                {
+                                    perror("accept");
+                                }
+                                
+                                memset(client_msg,'\0',2000);
+                                int read_size;
+
+                                printf("Conversation begun\nEnter \\x at any time to end.\n");
+                                
+                                fd_set readfs_new; 
+                                FD_ZERO(&readfs_new);
+
+                                //client now acting as server
+                                while(1) 
+                                {
+        
+                                    FD_SET(new_client_socket , &readfs_new);
+                                    FD_SET(0, &readfs_new);
+
+                                    memset(client_msg,'\0',2000);
+                                    memset(message,'\0',1000);
+
+                                    select(FD_SETSIZE, &readfs_new, NULL, NULL, NULL);
+                                    
+                                    
+                                    //If new client sends message first
+                                    if(FD_ISSET(new_client_socket , &readfs_new)) 
                                     {
-                                        if(strcmp(message,"\\x")==0)
+                                        recv(new_client_socket, client_msg , 2000 , 0);
+                                        printf("%s\n",client_msg);
+                                        if(strcmp(client_msg,"\\x")==0)
                                         {
                                             printf("ENDING CONVERSATION\n");
 
-                                            send(new_client_socket,message,strlen(message), 0);
-                                            //close(new_client_socket);
                                             FD_CLR(new_client_socket, &readfs_new);
                                             FD_CLR(0, &readfs_new);
                                             send(sock,"\\x",strlen("\\x"),0);
                                             break;
                                         }
                                         else
+                                            send(new_client_socket , "yes" , strlen("yes") , 0);
+                                    }
+                                        
+                                    //If stdin tries to send first
+                                    if(FD_ISSET(0, &readfs_new)) 
+                                    {
+                                        fgets(message,sizeof(message),stdin);
+                                        message[strlen(message)-1] = '\0';
+
+                                        if(strlen(message)>0)
                                         {
-                                            strcpy(complete,name);
-                                            strcat(complete,":");
-                                            strcat(complete,message);
-                                            strcat(complete,"\n");
-                                            send(new_client_socket  , complete , strlen(complete) , 0);
-                                            //send(new_client_socket  , complete , strlen(complete) , 0);
-                                            memset(complete,'\0',2000);
+                                            if(!strcmp(message,"\\x"))
+                                            {
+                                                printf("ENDING CONVERSATION\n");
+
+                                                send(new_client_socket,message,strlen(message), 0);
+                                                
+                                                FD_CLR(new_client_socket, &readfs_new);
+                                                FD_CLR(0, &readfs_new);
+                                                send(sock,"\\x",strlen("\\x"),0);
+                                                break;
+                                            }
+                                            else
+                                            {
+                                                strcpy(complete,name);
+                                                strcat(complete,":");
+                                                strcat(complete,message);
+                                                strcat(complete,"\n");
+                                                send(new_client_socket  , complete , strlen(complete) , 0);
+                                                memset(complete,'\0',2000);
+                                            }
                                         }
                                     }
+                                    FD_CLR(new_client_socket , &readfs_new);
+                                    FD_CLR(0, &readfs_new);       
+                    
                                 }
-                                FD_CLR(new_client_socket , &readfs_new);
-                                FD_CLR(0, &readfs_new);       
-                
-                            }
-                        }while(wait(NULL) != -1);
+                            }while(wait(NULL) != -1);
                         }
                         else
                         {
