@@ -231,6 +231,20 @@ int main(){
                     printf("%s\n", message);
                     memset(command,'\0',2000);
                 }
+
+                else if (!strcmp(command, "\\qw"))
+                {
+                    char message[1024] = "Requesting to quit the working group..\n";
+                    printf("%s\n", message);
+                    memset(command, '\0', 2000);
+                }
+
+                else if (!strcmp(command, "\\qf"))
+                {
+                    char message[1024] = "Requesting to quit the fun group..\n";
+                    printf("%s\n", message);
+                    memset(command, '\0', 2000);
+                }
  
                 else if(!strcmp(command, "\\f"))
                 {
