@@ -99,7 +99,7 @@ int main(int argc , char *argv[])
         for (i = 0; i < max_clients; i++){
 
             sd = client_socket[i];
-
+            printf("%d\n", sd);
             if(sd> 0)
             {
                 FD_SET(sd,&readfds);
@@ -136,7 +136,6 @@ int main(int argc , char *argv[])
             strcpy(names[count],name);
 
             ips[count] = address.sin_addr.s_addr;
-            client_socket[count] = sd;
             count+=1;  
 
             FILE *f = fopen("online.txt","w");
@@ -185,12 +184,17 @@ int main(int argc , char *argv[])
                 {
                     printf("Client %d disconnected\n",sd);
 
+                   // FD_CLR(sd,&readfds);
                     close(sd);
                     int i;
                     for (i = 0; i < max_clients; i++)
                     {
                         if ( sd == client_socket[i])
+                        {
                             client_socket[i] = 0;
+                            count-=1;
+                            break;
+                        }
                     }
                     if (inGroup (sd, working_group))
                     {   
@@ -209,7 +213,21 @@ int main(int argc , char *argv[])
                                 fun_group[i] = 0;
                         }
                     }
-                    FD_CLR(sd,&readfds);
+                    FILE *f = fopen("online.txt","w");
+                    fprintf(f,"%d\n",count);
+                    
+                    for(i=0;i<count;i++)
+                    {   
+                        if(client_socket[i]!=0)
+                        {
+                            printf("%s\n",names[i]);
+                            fprintf(f,"%s\n",names[i]);    //username
+                            fprintf(f,"%d\n",client_socket[i]);  //socket descriptor
+                            fprintf(f,"%d\n",ips[i]);    //ip
+                        }
+                    }
+                    fclose(f);
+
                     break;
                 }
                 if(!strcmp(response,"\\c"))
