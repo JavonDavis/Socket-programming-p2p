@@ -186,6 +186,29 @@ int main(int argc , char *argv[])
                     printf("Client %d disconnected\n",sd);
 
                     close(sd);
+                    int i;
+                    for (i = 0; i < max_clients; i++)
+                    {
+                        if ( sd == client_socket[i])
+                            client_socket[i] = 0;
+                    }
+                    if (inGroup (sd, working_group))
+                    {   
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == working_group[i])
+                                working_group[i] = 0;
+                        }
+                    }
+
+                    if (inGroup (sd, fun_group))
+                    {   
+                        for (i = 0; i < max_clients; i++)
+                        {
+                            if (sd == fun_group[i])
+                                fun_group[i] = 0;
+                        }
+                    }
                     FD_CLR(sd,&readfds);
                     break;
                 }
