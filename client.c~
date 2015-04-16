@@ -69,8 +69,6 @@ int main(){
         printf("\\f - to subscribe to fun group\n");
         printf("\\sw - to send a broadcast to working group\n");
         printf("\\sf - to send a broadcast to fun group\n");
-	printf("\\qw - to exit the working group\n");
-        printf("\\qf - to exit the fun group\n");
         printf("\\q - Exit\n");
 
         fd_set readfs;
