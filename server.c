@@ -10,6 +10,8 @@
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
   
 #define PORT 60000
+#define TCP 0
+#define UDP 1
  
 int inGroup(int sd, int group[10])
 {
@@ -25,6 +27,15 @@ int inGroup(int sd, int group[10])
 
 int main(int argc , char *argv[])
 {
+
+    if (argc != 2){
+        printf("USAGE: server 0 (for tcp), server 1 (UDP)\n");
+        exit(0);
+    }
+
+    int protocol = atoi(argv[1]);
+    printf("%d\n", protocol);
+
     int main_socket , addrlen , new_socket , client_socket[10] , max_clients = 10 , activity, i , num_bytes , sd;
     int max =10,send_len;
     int maxfds;
@@ -38,7 +49,6 @@ int main(int argc , char *argv[])
     char reply[30];
     char buffer[1025],buff[1024];  //data buffer of 1K
       
-
     int working_group[10], fun_group[10];
     int workingIndex = 0, funIndex = 0;
 
@@ -56,7 +66,11 @@ int main(int argc , char *argv[])
         client_socket[i] = 0;
     }
 
-    main_socket = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
+    if (protocol == TCP)
+        main_socket = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
+    else
+        main_socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
     if(main_socket == 0)
     {
         perror("socket creation failed\n");
@@ -82,16 +96,18 @@ int main(int argc , char *argv[])
     printf("Waiting for connections...\n");
 
      //try to specify maximum of 3 pending connections for the master socket
-    i = listen(main_socket, 10) ;
-    if (i < 0)
+    if (protocol == TCP)    
     {
-        perror("listen");
-        exit(EXIT_FAILURE);
+        i = listen(main_socket, 10);
+        if (i < 0)
+        {
+            perror("listen");
+            exit(EXIT_FAILURE);
+        }   
     }
     
     while(1)
     {
-
        FD_ZERO(&readfds);
        FD_SET(main_socket,&readfds);
        
@@ -99,7 +115,6 @@ int main(int argc , char *argv[])
         for (i = 0; i < max_clients; i++){
 
             sd = client_socket[i];
-            printf("%d\n", sd);
             if(sd> 0)
             {
                 FD_SET(sd,&readfds);
@@ -120,47 +135,55 @@ int main(int argc , char *argv[])
         if (FD_ISSET(main_socket, &readfds)) {
             //activity on the main
             //accept connection from an incoming client
-            sd = accept(main_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-            if (sd < 0)
+            if (protocol == TCP)
             {
-                perror("accept failed");
-                return 1;
-            }
-            printf("Connection accepted from %d\n",sd);
-
-            memset(name,'\0',2000);
-
-            //Receive name from client
-            i = recv(sd , name , 80 , 0);
-            printf("name = %s\n",name);
-            strcpy(names[count],name);
-
-            ips[count] = address.sin_addr.s_addr;
-            count+=1;  
-
-            FILE *f = fopen("online.txt","w");
-            fprintf(f,"%d\n",count);
-            
-            for(i=0;i<count;i++)
-            {   
-                printf("%s\n",names[i]);
-                fprintf(f,"%s\n",names[i]);    //username
-                fprintf(f,"%d\n",client_socket[i]);  //socket descriptor
-                fprintf(f,"%d\n",ips[i]);    //ip
-            }
-            fclose(f);
-
-            for(i=0;i<max_clients;i++)
-            {
-                if(client_socket[i] == 0)
+                sd = accept(main_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+                if (sd < 0)
                 {
-                    client_socket[i] = sd;
-                    break;
+                    perror("accept failed");
+                    return 1;
                 }
+                i = recv(sd , name , 80 , 0);
+                printf("name = %s\n",name);
+                strcpy(names[count],name);
+
+                ips[count] = address.sin_addr.s_addr;
+                count+=1;  
+
+                FILE *f = fopen("online.txt","w");
+                fprintf(f,"%d\n",count);
+                
+                for(i=0;i<count;i++)
+                {   
+                    printf("%s\n",names[i]);
+                    fprintf(f,"%s\n",names[i]);    //username
+                    fprintf(f,"%d\n",client_socket[i]);  //socket descriptor
+                    fprintf(f,"%d\n",ips[i]);    //ip
+                }
+                fclose(f);
+
+                for(i=0;i<max_clients;i++)
+                {
+                    if(client_socket[i] == 0)
+                    {
+                        client_socket[i] = sd;
+                        break;
+                    }
+                }
+                write(sd,"Name saved\0",11);
+            } 
+            else 
+            {
+                printf("UDP running\n");
+
+                recvfrom(main_socket, response, 2000, 0, (struct sockaddr *)  &address, &addrlen);
+                //recv(sd, response, 2000, 0);
+                // int tmp;
+                // printf("here\n");
+                // scanf("%d",&tmp);
+                printf("%s\n", response);
+                write(main_socket, response, strlen(response));
             }
-
-            write(sd,"Name saved\0",11);
-
         }
 
         for (i = 0; i < max_clients; i++)
@@ -175,8 +198,11 @@ int main(int argc , char *argv[])
                 memset(response,'\0',2000);
                 int size;
                 char user[80];
+                if (protocol == TCP)
+                    size = recv(sd, response, 2000, 0);
+                else
+                    size = recvfrom(sd, response, 2000, 0, (struct sockaddr *) &address, &addrlen);
 
-                size = recv(sd, response, 2000, 0);
                 response[strlen(response)] = 0;
                 printf("Received command: %s\n", response);
 
@@ -184,7 +210,6 @@ int main(int argc , char *argv[])
                 {
                     printf("Client %d disconnected\n",sd);
 
-                   // FD_CLR(sd,&readfds);
                     close(sd);
                     int i;
                     for (i = 0; i < max_clients; i++)
@@ -233,7 +258,11 @@ int main(int argc , char *argv[])
                 if(!strcmp(response,"\\c"))
                 {
                     memset(response,'\0',2000);
-                    recv(sd,response,2000,0);//stage 1 get name of other client
+                    if (protocol == TCP)
+                        recv(sd,response,2000,0);//stage 1 get name of other client
+                    else 
+                        recvfrom(sd,response,2000,0, (struct sockaddr *) &address, &addrlen);
+                        
 
                     printf("Request to connect to %s\n",response);
 
@@ -337,7 +366,11 @@ int main(int argc , char *argv[])
                             }
 
                             memset(message,'\0',2000);
-                            recv(sock_desc_client[k],message,80,0);
+                            if (protocol == TCP)
+                                recv(sock_desc_client[k],message,80,0);
+                            else 
+                                recvfrom(sock_desc_client[k],message,80,0, (struct sockaddr *) &address, &addrlen);
+
                             if(!strcmp(message,"y"))
                             {
                                 //stage 6 send socket descriptors to respective clients
@@ -451,7 +484,10 @@ int main(int argc , char *argv[])
                     char * error = "You aren't in the working group.";
                     // Get message..
                     memset(response,'\0',2000); //clear response variable
-                    recv(sd,response,2000,0);
+                    if (protocol == TCP)
+                        recv(sd,response,2000,0);
+                    else
+                        recvfrom(sd,response,2000,0, (struct sockaddr *) &address, &addrlen);
 
                     printf("working index:%d\n", workingIndex);
                 
@@ -476,7 +512,10 @@ int main(int argc , char *argv[])
                     char * error = "You aren't in the fun group.";
                     // Get message..
                     memset(response,'\0',2000); //clear response variable
-                    recv(sd,response,2000,0);//stage 1 get name of other client
+                    if (protocol == TCP)
+                        recv(sd,response,2000,0);//stage 1 get name of other client
+                    else
+                        recvfrom(sd,response,2000,0, (struct sockaddr *) &addrlen, &addrlen);
                     // loop over working group and send to all..
 
                     if ( inGroup(sd, fun_group) ) 
@@ -540,8 +579,5 @@ int main(int argc , char *argv[])
            
         }      
     }
-
-    // close all sockets in 
-
     remove("busy.txt");
 }

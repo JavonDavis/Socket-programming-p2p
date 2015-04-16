@@ -1,11 +1,23 @@
 #include <stdio.h>  //printf
+#include <stdlib.h>
 #include <string.h> //strlen
 #include <sys/socket.h> //socket
 #include <arpa/inet.h>  //inet_addr
 
 #define PORT 60000
+#define TCP 0
+#define UDP 1
 
-int main(){
+int main(int argc, char * argv[]){
+
+    if (argc != 2)
+    {
+        printf("USAGE: server 0 (for tcp), server 1 (UDP)\n");
+        exit(0);
+    }
+
+    int protocol = atoi(argv[1]);
+
     int sock,i;
     char name[80],response[80],command[80],ip[80],port[10];
     struct sockaddr_in server,new_server,client, server_client,new_client;
@@ -15,7 +27,11 @@ int main(){
     int size_new,new_client_socket;
 
     //Create socket
-    sock = socket(AF_INET , SOCK_STREAM , 0);
+    if (protocol == TCP)
+        sock = socket(AF_INET , SOCK_STREAM , 0);
+    else
+        sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
     if (sock < 0 )
     {
         printf("Could not create socket");
@@ -28,11 +44,14 @@ int main(){
     server.sin_family = AF_INET;
     server.sin_port = htons( PORT );
 
-    i = connect(sock, (struct sockaddr *) &server, sizeof(server));
-    if(i<0)
+    if (protocol == TCP)
     {
-        perror("connect");
-        return 1;
+        i = connect(sock, (struct sockaddr *) &server, sizeof(server));
+        if(i<0)
+        {
+            perror("connect");
+            return 1;
+        }
     }
 
     printf("Connected\n");
@@ -41,13 +60,18 @@ int main(){
         printf("Enter username: ");
         scanf("%s",name);
 
-        i = send(sock,name,strlen(name),0);
+        if (protocol == TCP)
+            i = send(sock,name,strlen(name),0);
+        else
+            i = sendto(sock,name,strlen(name),0, (struct sockaddr *) &server, sizeof(server));
+
         if(i<0)
         {
             printf("Could not send your name\n");
             return 1;
         }
 
+        printf("here\n");
         i = recv(sock,response,80,0);
         response[strlen(response) -1] = '\0';
         if(i<0)
@@ -61,7 +85,6 @@ int main(){
         }
 
         printf("\t\t\t%s\t\t\t\n",name );
-        
         
         printf("Command List:\n\\l - view available clients\n");
         printf("\\c - to communicate with a client\n");
