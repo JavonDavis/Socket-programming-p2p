@@ -9,15 +9,16 @@ Compile both the server client c files. Start the server then start as many clie
 
 max # of clients:10
 
-#Usage
-	Commands:
-	\l - view available clients
-	\c - to communicate with a client
-    \w - to subscribe to working group
-    \f - to subscribe to fun group
-    \sw - to send a broadcast to working group
-    \sf - to send a broadcast to fun group
-    \qw - to exit the working group
-    \qf - to exit the fun group
-	\q - Exit
+# Usage
+
+Commands:
+* \l - view available clients
+* \c - to communicate with a client
+* \w - to subscribe to working group
+* \f - to subscribe to fun group
+* \sw - to send a broadcast to working group
+* \sf - to send a broadcast to fun group
+* \qw - to exit the working group
+* \qf - to exit the fun group
+* \q - Exit
 
